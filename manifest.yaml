@@ -146,7 +146,7 @@ outcomes:
       - name: stations
         type: array
         item_type: string
-        description: One line per stop, in order, as "1. Brixton (Victoria): Prior".
+        description: 'One line per stop, in order, as "1. Brixton (Victoria): Prior".'
       - name: story
         type: string
         description: The whole journey in a few sentences.
