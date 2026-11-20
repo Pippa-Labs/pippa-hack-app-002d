@@ -1,156 +1,265 @@
-"""Tests for your app. Run them with `pytest`.
+"""Tests for Mind the Gap, through LocalRunner so the manifest is enforced.
 
-Keep these. Publishing runs them, and a repository whose tests fail does not
-deploy — which is the fastest feedback you will get all day, because the
-alternative is finding out from a user that your app answers wrongly.
-
-`LocalRunner` is the same code the production runtime uses to call your app.
-So a call that works here works deployed, and — more usefully — a `Result`
-that violates your manifest fails here exactly as it would in production.
-That is the whole reason to test through the runner rather than calling
-`App().handle(...)` directly.
+The network is never used: every test replaces `App._fetch` on the
+instance. Claude is stubbed with canned Messages API replies.
 """
 
 from __future__ import annotations
 
+import json
+import urllib.error
 from datetime import datetime, timezone
 
 import pytest
 from pippa_agentapp_sdk import LocalRunner, OutputShapeViolation
 
-from app import App, CannotReadDate
+import tube
+from app import App, NoMaterial, NothingToAdapt, UnknownLine, UnknownStation
 
-# A fixed "now", so a test that passes today still passes next March.
-# 21:00 UTC on purpose: it is already the next day in New Zealand, which is
-# what makes the time zone test below mean anything. At 09:00 UTC it is still
-# the same day everywhere that matters, and the test would pass whether or not
-# the code handled time zones at all.
-NOW = datetime(2026, 10, 22, 21, 0, tzinfo=timezone.utc)
-
-
-def call(inputs: dict, outcome: str = "days.until", *, explicit: bool = False):
-    """Run one outcome the way the runtime does, and return the Result.
-
-    `granted_secrets` is required even though a hackathon app never has any —
-    the runner takes it on every call, so an empty dict is how you say "none".
-
-    `explicit=True` calls the app the way Pippa does when the person picked
-    it by name (`@Days Until ...`) instead of Pippa choosing it. The app sees
-    it as `call.context.explicit`.
-    """
-    return LocalRunner(App()).call(
-        outcome, inputs, granted_secrets={}, now=NOW, request_id="test-1",
-        explicit=explicit,
-    ).result
+NOW = datetime(2026, 11, 20, 18, 0, tzinfo=timezone.utc)
+FAKE_KEY = "test-key-not-real"  # pragma: allowlist secret
+BAYES_ROUTE = ["Brixton", "Stockwell", "Vauxhall", "Pimlico", "Victoria"]
+CELLS = "mitochondria: powerhouse of the cell\nribosome: makes proteins\nnucleus: holds the DNA\ngolgi: packages proteins"
 
 
-def test_the_manifest_is_valid():
-    """The first thing to break, and the easiest to miss.
+def offline(url, timeout=6.0, data=None, headers=None, key_header=None):
+    raise urllib.error.URLError("offline in tests")
 
-    `App()` validates manifest.yaml as it is constructed, so this fails the
-    moment the manifest is malformed — before anything else has a chance to
-    produce a more confusing error.
-    """
+
+def tfl_ok(url, timeout=6.0, data=None, headers=None, key_header=None):
+    assert url.startswith("https://api.tfl.gov.uk/Line/")
+    return json.dumps([{"id": "victoria", "lineStatuses": [{"statusSeverityDescription": "Good Service"}]}]).encode()
+
+
+def claude_reply(payload: dict) -> bytes:
+    return json.dumps({"stop_reason": "end_turn",
+                       "content": [{"type": "text", "text": json.dumps(payload)}]}).encode()
+
+
+def run(inputs: dict, outcome: str = "palace.create", fetch=offline, explicit: bool = False):
     app = App()
-    assert app.manifest.app_id.startswith("hack.")
-    assert [o.id for o in app.manifest.outcomes] == ["days.until"]
+    app._fetch = fetch
+    return LocalRunner(app).call(outcome, inputs, granted_secrets={}, now=NOW, request_id="t1",
+                                 explicit=explicit).result
 
 
-def test_it_counts_the_days():
-    result = call({"date": "2026-12-25"})
-    assert result.data["days"] == 64
-    assert result.data["target_date"] == "2026-12-25"
-    assert result.data["weekday"] == "Friday"
-    assert result.data["already_passed"] is False
+@pytest.fixture(autouse=True)
+def no_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
 
-def test_a_date_written_in_words_works():
-    result = call({"date": "25 December"})
-    assert result.data["target_date"] == "2026-12-25"
+def test_manifest_is_valid():
+    assert App().manifest is not None
 
 
-def test_a_date_already_gone_rolls_to_next_year():
-    """`1 January` asked in October means the January that is coming."""
-    result = call({"date": "1 January"})
-    assert result.data["target_date"] == "2027-01-01"
-    assert result.data["already_passed"] is False
+# ── CONSTRUCT ───────────────────────────────────────────────────────────────
 
 
-def test_the_users_timezone_decides_what_today_is():
-    """21:00 UTC is already tomorrow in Auckland.
-
-    Worth a test of its own: it is the bug every date app has, it only shows
-    up for users in some parts of the world, and it is invisible if you only
-    ever test from one place.
-    """
-    here = call({"date": "2026-10-23"}).data["days"]
-    there = call({"date": "2026-10-23", "timezone": "Pacific/Auckland"}).data["days"]
-    assert here == 1    # still the 22nd in UTC
-    assert there == 0   # already the 23rd in Auckland
+def test_bayes_demo_uses_the_real_victoria_line_in_order():
+    r = run({"material": "bayes"}, fetch=tfl_ok)
+    stops = r.data["palace"]["stops"]
+    assert [s["station"] for s in stops] == BAYES_ROUTE
+    assert [s["concept"] for s in stops] == ["Prior", "Likelihood", "Evidence", "Normalisation", "Posterior"]
+    assert r.data["imagery_source"] == "curated"
+    assert r.data["live_status"] == ["Victoria: Good Service"]
+    assert "live line status" in r.data["route_source"]
+    assert "0.0585" in stops[2]["scene"]
 
 
-def test_a_made_up_timezone_never_reaches_the_app():
-    """The platform checks declared types before your code runs.
-
-    `type: timezone` in the manifest means the runtime validates it. So your
-    app does not need to — and should not, because a hand-rolled check here
-    would be dead code that looks load-bearing.
-    """
-    from pippa_agentapp_sdk import InputShapeViolation
-
-    with pytest.raises(InputShapeViolation):
-        call({"date": "2026-12-25", "timezone": "Mars/Olympus"})
+def test_every_station_is_real_and_adjacent_on_its_line():
+    r = run({"material": CELLS, "line": "central"})
+    stops = r.data["palace"]["stops"]
+    assert len(stops) == 4
+    for a, b in zip(stops, stops[1:]):
+        assert a["station_id"] in tube.STATIONS and b["station_id"] in tube.STATIONS
+        assert b["station_id"] in tube._ADJ[(a["station_id"], "central")]
 
 
-def test_no_date_is_an_error_a_user_can_read():
-    with pytest.raises(CannotReadDate) as failure:
-        call({"date": ""})
-    # `user_message` is the only part a user may be shown, so it is the part
-    # worth asserting on. The rest stays in the logs.
-    assert failure.value.user_message == "I could not work out which date you meant."
+def test_list_without_key_falls_back_to_templates_with_a_warning():
+    r = run({"material": CELLS})
+    assert r.data["imagery_source"] == "template"
+    assert any("template" in w for w in r.warnings)
+    assert any("Live TfL" in n for n in r.data["notes"])
 
 
-def test_nonsense_is_refused_rather_than_guessed():
-    with pytest.raises(CannotReadDate):
-        call({"date": "a week on Thursday-ish"})
+def test_named_route_between_stations():
+    r = run({"material": CELLS, "from_station": "Oxford Circus", "to_station": "Victoria"})
+    stations = [s["station"] for s in r.data["palace"]["stops"]]
+    assert stations[0] == "Oxford Circus"
+    assert len(stations) == 4
 
 
-def test_picked_by_name_it_answers_and_refuses_as_usual():
-    """`@Days Until ...` in the chat: the person picked this app themselves.
-
-    Then nothing checks whether the message suits the app. It is called
-    whatever the words, and `call.context.explicit` is True. The right
-    response is the ordinary one: answer what you can, and refuse only for a
-    missing or unreadable input, with a sentence that says what was wrong.
-    Never refuse because the message does not look like your example phrases
-    — the person has already told you it is for you.
-
-    This app never reads the flag, because it never needed to: it already
-    refuses only for a missing or unreadable date. If yours does, read it as
-    `getattr(call.context, "explicit", False)`. An app published before the
-    platform update that added the flag runs on an SDK that does not have
-    it, until you publish it again.
-    """
-    picked = call({"date": "2026-12-25"}, explicit=True)
-    assert picked.data == call({"date": "2026-12-25"}).data
-
-    with pytest.raises(CannotReadDate) as failure:
-        call({"date": ""}, explicit=True)
-    assert failure.value.user_message == "I could not work out which date you meant."
+def test_the_same_inputs_build_the_same_palace():
+    assert run({"material": CELLS}).data["palace"] == run({"material": CELLS}).data["palace"]
 
 
-def test_the_runner_enforces_the_manifest(monkeypatch):
-    """Proof that the contract is real, and the reason to test through it.
+def test_no_material_says_what_to_type():
+    with pytest.raises(NoMaterial):
+        run({})
 
-    An app returning a field it did not declare is refused. You will meet this
-    error if you add something to `data` and forget to add it to `output` in
-    manifest.yaml — which is the single most common way a first app fails
-    after it deploys.
-    """
+
+def test_unknown_station_is_named():
+    with pytest.raises(UnknownStation) as info:
+        run({"material": CELLS, "from_station": "Narnia"})
+    assert "Narnia" in info.value.user_message
+
+
+def test_elizabeth_line_is_not_tube():
+    with pytest.raises(UnknownLine) as info:
+        run({"material": CELLS, "line": "Elizabeth line"})
+    assert "isn't part of the Underground" in info.value.user_message
+
+
+def test_claude_scenes_are_used_and_invented_stations_rejected(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+    seen = {}
+
+    def fetch(url, timeout=6.0, data=None, headers=None, key_header=None):
+        if "tfl" in url:
+            return tfl_ok(url)
+        assert url == "https://api.anthropic.com/v1/messages"
+        assert key_header == ("x-api-key", FAKE_KEY)
+        assert FAKE_KEY not in data.decode()
+        seen["body"] = json.loads(data)
+        return claude_reply({"scenes": [
+            {"index": 0, "scene": "A giant MITOCHONDRIA battery glows at the station."},
+            {"index": 1, "scene": "A RIBOSOME waves from Baker Street."},   # another station: rejected
+            {"index": 2, "scene": "The NUCLEUS sits in a vault of DNA."},
+            {"index": 3, "scene": "GOLGI wraps parcels with ribbon."},
+        ]})
+
+    r = run({"material": CELLS}, fetch=fetch)
+    stops = r.data["palace"]["stops"]
+    assert [s["scene_source"] for s in stops] == ["claude", "template", "claude", "claude"]
+    assert "Baker Street" not in stops[1]["scene"]
+    assert seen["body"]["model"] == "claude-opus-5-5"
+    assert any("station check" in w for w in r.warnings)
+
+
+def test_claude_rate_limit_falls_back(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+
+    def fetch(url, timeout=6.0, data=None, headers=None, key_header=None):
+        raise urllib.error.HTTPError(url, 429, "busy", {}, None)
+
+    r = run({"material": CELLS}, fetch=fetch)
+    assert r.data["imagery_source"] == "template"
+    assert any("busy" in w for w in r.warnings)
+    assert FAKE_KEY not in json.dumps(r.data)
+
+
+def test_claude_timeout_falls_back(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", FAKE_KEY)
+
+    def fetch(url, timeout=6.0, data=None, headers=None, key_header=None):
+        raise TimeoutError("slow")
+
+    assert run({"material": CELLS}, fetch=fetch).data["imagery_source"] == "template"
+
+
+def test_prose_without_key_becomes_one_stop_per_sentence():
+    text = ("Photosynthesis turns light into chemical energy. It happens in the chloroplasts of plant cells. "
+            "Carbon dioxide and water go in. Glucose and oxygen come out.")
+    r = run({"material": text})
+    assert len(r.data["stations"]) == 4
+
+
+# ── EXPERIENCE ──────────────────────────────────────────────────────────────
+
+
+def test_journey_starts_then_moves_next_back_and_ends():
+    first = run({"material": "bayes"}, "palace.journey")
+    assert first.data["position"] == 1 and first.data["station"] == "Brixton"
+    assert "Welcome aboard" in first.data["announcement"]
+    nxt = run({"material": "bayes", "position": 1, "action": "next"}, "palace.journey")
+    assert nxt.data["station"] == "Stockwell" and nxt.data["previous_station"] == "Brixton"
+    back = run({"material": "bayes", "current_station": "Vauxhall", "action": "previous"}, "palace.journey")
+    assert back.data["station"] == "Stockwell"
+    skip = run({"material": "bayes", "position": 2, "action": "skip"}, "palace.journey")
+    assert skip.data["position"] == 3
+    end = run({"material": "bayes", "position": 4, "action": "next"}, "palace.journey")
+    assert end.data["at_end"] is True and "mind the gap" in end.data["announcement"]
+
+
+def test_journey_picked_by_name_still_answers():
+    r = run({"material": "bayes", "action": "repeat", "position": 3}, "palace.journey", explicit=True)
+    assert r.data["station"] == "Vauxhall"
+
+
+def test_station_not_on_palace_lists_the_stops():
+    with pytest.raises(UnknownStation) as info:
+        run({"material": "bayes", "current_station": "Morden"}, "palace.journey")
+    assert "Brixton" in info.value.user_message
+
+
+# ── RETRIEVE ────────────────────────────────────────────────────────────────
+
+
+def test_quiz_mode_asks_questions():
+    r = run({"material": "bayes"}, "palace.test")
+    assert r.data["mode"] == "quiz" and len(r.data["questions"]) == 6
+
+
+def test_perfect_recall_in_order():
+    r = run({"material": "bayes", "recall": "prior, likelihood, evidence, normalization, posterior"}, "palace.test")
+    assert r.data["score"] == 1.0 and r.data["order_correct"] is True and r.data["weak_stations"] == []
+
+
+def test_swapped_answers_are_misplaced():
+    recall = "brixton prior, stockwell likelihood, vauxhall evidence, pimlico posterior, victoria normalisation"
+    r = run({"material": "bayes", "recall": recall}, "palace.test")
+    assert r.data["weak_stations"] == ["Pimlico", "Victoria"]
+    assert r.data["order_correct"] is False
+    assert r.data["score"] == 0.8
+
+
+def test_missing_answers_count_as_missed():
+    r = run({"material": "bayes", "recall": "prior, likelihood"}, "palace.test")
+    assert r.data["correct"] == 2 and len(r.data["weak_stations"]) == 3
+
+
+# ── ADAPT ───────────────────────────────────────────────────────────────────
+
+
+def test_adapt_strengthens_only_the_weak_stations():
+    before = run({"material": "bayes"}).data["palace"]["stops"]
+    r = run({"material": "bayes", "struggled_with": ["Pimlico", "Vauxhall"]}, "palace.adapt")
+    after = r.data["palace"]["stops"]
+    assert r.data["weak_stations"] == ["Vauxhall", "Pimlico"]
+    for b, a in zip(before, after):
+        if b["station"] in ("Vauxhall", "Pimlico"):
+            assert a["scene"] != b["scene"]
+        else:
+            assert a["scene"] == b["scene"]
+    assert r.data["review_interval"] == "P1D"
+    assert r.data["next_review_at"].startswith("2026-11-21T18:00")
+
+
+def test_poor_score_reviews_again_in_twenty_minutes():
+    r = run({"material": "bayes", "recall": "prior"}, "palace.adapt")
+    assert r.data["review_interval"] == "PT20M" and r.data["review_count"] == 0
+
+
+def test_spacing_grows_with_reviews():
+    r = run({"material": "bayes", "recall": "prior, likelihood, evidence, normalisation, posterior",
+             "review_count": 2}, "palace.adapt")
+    assert r.data["review_interval"] == "P7D" and r.data["review_count"] == 3
+
+
+def test_adapt_needs_something_to_work_on():
+    with pytest.raises(NothingToAdapt):
+        run({"material": "bayes"}, "palace.adapt")
+
+
+def test_a_passed_back_palace_is_rebuilt_from_station_ids():
+    palace = run({"material": CELLS}).data["palace"]
+    palace["stops"][0]["station"] = "Hogwarts"
+    r = run({"palace": palace, "position": 1, "action": "repeat"}, "palace.journey")
+    assert r.data["station"] != "Hogwarts"
+
+
+def test_wrong_output_shape_is_refused(monkeypatch):
     from pippa_agentapp_sdk import Result
-
-    monkeypatch.setattr(
-        App, "handle", lambda self, c: Result(data={"surprise": "hello"})
-    )
+    monkeypatch.setattr(App, "handle", lambda self, call: Result(data={"title": "x"}))
     with pytest.raises(OutputShapeViolation):
-        call({"date": "2026-12-25"})
+        run({"material": "bayes"})

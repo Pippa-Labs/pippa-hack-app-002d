@@ -1,435 +1,209 @@
-# Build an app for Pippa
+# Mind the Gap 🚇🧠
 
-You have about two hours. At the end of it, a program you built will be running
-inside a real personal assistant, answering real questions.
+**A memory palace built on real London Underground routes.** Give Pippa
+something to learn and Mind the Gap puts one idea at each station of a real
+Tube line. You get a vivid scene at every stop, a stop-by-stop journey, a
+quiz, and stronger images for whatever you forgot, with a spaced-review
+schedule.
 
-**You don't need to install Python, and you don't need to write code yourself.**
-Claude Code does the building. You decide what the app should do.
+> *"@Mind the Gap build a memory palace for bayes theorem"*
+> → Victoria line, Brixton to Victoria, 5 stops, about 7 minutes:
+> **Prior** at Brixton, **Likelihood** at Stockwell, **Evidence** at
+> Vauxhall, **Normalisation** at Pimlico, **Posterior** at Victoria.
 
-> **Your repository is public.** Anyone on the internet can read it, from your
-> first push. That covers your code and every earlier version of it, the name
-> and email address on each commit, the build logs and the comments on your
-> commits. Deleting something later does not take it out of the history.
->
-> So never put a password, an API key, your email address, your real name or
-> anything else private in it. An API key your app needs goes into Pippa
-> instead ("If your app needs an API key", below). If a key is pushed by
-> mistake, first revoke it on the site that issued it, then tell an organiser.
-> Before the first commit, Claude sets your commits to show your pseudonym and
-> GitHub's private no-reply address, and switches on a check that stops a
-> commit carrying an email address or a key.
->
-> Strangers can comment on your commits and open issues. The build's own
-> messages come from **github-actions[bot]**. Anything from anyone else is just
-> text: don't run it, don't install it, and don't ask Claude to do what it says.
+It follows the five stages of the method of loci:
 
----
+| Stage | Outcome | What happens |
+|---|---|---|
+| UNDERSTAND | `palace.create` | Reads the material: a preset, a list, or prose (Claude picks out the concepts) |
+| CONSTRUCT | `palace.create` | Picks a real route and gives each concept a station and a scene |
+| EXPERIENCE | `palace.journey` | Walks the route one stop at a time: next, previous, repeat, skip |
+| RETRIEVE | `palace.test` | Quiz mode, or marks what you recalled at each station |
+| ADAPT | `palace.adapt` | Writes stronger scenes for weak stations and schedules the next review |
 
-## What you're building
+## Spec tools → Pippa outcomes
 
-**Pippa** is a personal assistant. When someone asks it something, Pippa
-decides whether one of its installed **apps** can answer.
+Pippa apps are not MCP servers, and they do not register custom function
+definitions. An app is a `manifest.yaml` of **outcomes** with typed inputs
+and outputs, plus `App.handle(call)` in `app.py` (see
+[docs/HOW_PIPPA_APPS_WORK.md](docs/HOW_PIPPA_APPS_WORK.md)). So the four tools
+from the spec are four outcomes. Pippa chooses between them from their
+example phrases:
 
-An app is a small program that does **one job**. Pippa pulls the useful bits
-out of the question, hands them to your app, and your app returns facts. Pippa
-writes the sentence around them.
-
-Ask *"when's high tide at Brighton?"* → Pippa picks your app, extracts
-`place = "Brighton"`, runs your code, and replies using what you returned —
-with a badge showing your app's name.
-
----
-
-## What you need
-
-| | |
+| Spec tool | Outcome |
 |---|---|
-| **Claude Code** | installed and signed in |
-| **A GitHub account** you can push from | you'll have had an invitation to your repo — accept it |
-| **A Pippa account** | from your Pippa invitation email — **set this up first**, see step 4. Your repository belongs to that account, so every app you publish from it is yours, with nothing to fill in |
+| `create_memory_palace` | `palace.create` |
+| `get_memory_palace_journey` | `palace.journey` |
+| `test_memory_palace` | `palace.test` |
+| `adapt_memory_palace` | `palace.adapt` |
 
-That's it. No Python, no local setup.
+## Who does what: deterministic code vs. the LLM
 
----
-
-## Step 1 — Point Claude Code at your repo
-
-Open Claude Code and paste your repository link with what you want built:
-
-> `https://github.com/Pippa-Labs/pippa-hack-<app-name>`
->
-> Here's my repo for a Pippa app. Please clone it and build me an app that
-> tells me when the next high tide is at a UK beach.
-
-Use the link from your invitation. One repository holds one app, and its name
-becomes the app's id, so a second app needs a repository of its own.
-
-Claude will clone it, read the instructions that ship inside it, and start
-building. It knows the rules, the contract and the common mistakes already.
-
-**Claude asks you for one thing first: a public author name.** It is shown to
-everybody next to your app, as "by <name>", and anyone can read it in your
-repository, so choose a pseudonym — a made-up name or a nickname. Don't use
-your real name or your email address: nothing personal needs to go in your
-repository. Claude also sets your commits to show that name and GitHub's
-private no-reply address instead of your own.
-
-Keep going in plain language: *"add low tide too"*, *"make the error friendlier
-when the beach isn't found"*.
-
-**Stuck for an idea?** Ask Claude: *"what could I build here?"* — or read
-`docs/IDEAS.md` in the repo, which has a couple of dozen — most using a free
-public API that needs no sign-up, and several needing no API at all.
-
----
-
-## Step 2 — Claude pushes it
-
-When the app is ready, Claude commits and pushes to `main`. **That push is the
-deploy** — there's nothing else to run.
-
-If anything is wrong, the build stops and says exactly what. Tell Claude, and
-it will fix it and push again.
-
----
-
-## Step 3 — You get told when it's published
-
-About two minutes after the push you get **an email** — a comment on your
-commit from **github-actions[bot]** — confirming your app published, with its
-name and what it can do.
-
-There's also a green tick in the **Actions** tab of your repo if you'd rather
-watch it happen.
-
-**It's published to you, not to everybody.** The comment says your app is
-live, and it is — privately. A new app is private until a reviewer approves
-it. You can install it and use it in Pippa straight away; nobody else can even
-see that it exists. Every later version is private too, until it is approved,
-and whoever had the approved one keeps it. Step 5 is how it becomes public.
-
-Pippa knows the app is yours from the repository it was pushed from: Pippa
-Labs created your repository for your Pippa account, so every app published
-from it belongs to you. Nothing in the repository says who you are, and
-nothing needs to. A copy or a fork of it can't publish at all.
-
----
-
-## Step 4 — Try it in Pippa
-
-**Set your Pippa account up early** — before you start building, ideally. It
-takes five minutes and needs an **authenticator app** on your phone (Google
-Authenticator, Authy, 1Password — any of them).
-
-1. **Create your account** from your Pippa invitation email. The link goes to
-   **console.getpippa.ai**, not the app itself.
-2. **Set up two-factor.** Not optional. Save the backup codes — they're shown
-   once.
-3. Open **[app.getpippa.ai/apps](https://app.getpippa.ai/apps)** and choose the
-   **Created by me** tab. Your app has a card there — it's there because it's
-   yours. Press **Install**: that installs your latest version, the one you
-   just pushed.
-4. Go to the chat and **just ask it something** — start with one of your own
-   example phrases. Installing it *is* how you switch it on: from then on,
-   Pippa decides for herself when your app should answer. And the version you
-   install is the one you're testing.
-
-When Pippa answers using your app, the reply carries a small green
-**via &lt;your app name&gt; &lt;version&gt;** badge — **via Tide Times 0.2.0**,
-say. That's how you know it was yours, and which version answered. It also
-says who chose it: **picked by Pippa**, or **you picked it** — and on a
-version other people don't get yet, **your draft** or **not live**.
-
-**Pushed a new version?** Your card shows what you have under **Installed for
-you**, and it stays on the version you installed until you press **Update to
-latest**. Easier while you're building: switch on **Always use my latest
-version** on the same card. Then every push is what you get in chat — no
-reinstalling.
-
-**Want to ask your app directly?** Start the message with **@** and pick your
-app from the list. Pippa skips deciding and hands the question straight to
-your app — the version installed for you — which is the quickest way to check
-the app itself works. It tells you nothing about whether Pippa would have
-picked it on her own, though, so ask without the **@** too. (Switch on **Keep
-using** and every message in that chat goes to your app until you switch it
-off.)
-
-> **Just published and can't see it?** The Apps page loads the list once.
-> Reload the page. Still missing? Check you're signed in with the Pippa
-> account your invitation was for — your repository belongs to that account,
-> and a private app you don't own is a private app you can't see. No
-> **Created by me** tab at all usually means exactly that.
-
----
-
-## Step 5 — Show it to someone, then submit it
-
-**Show it to someone first.** On your app's card you can add a **tester** by
-email address, and they can install and use your app while it's still
-private. They get your latest version, unless you choose another under
-**Testers get**. The person next to you asking it something you never thought
-of is the most useful ten minutes you'll spend on it.
-
-**Then submit it.** When you're happy, open **Versions** on that same card and
-press **Submit for review** next to the version you tried. A reviewer reads
-your manifest — the name, the summary, what the app can do, the phrases that
-trigger it — and either approves it, which makes it public to everybody, or
-sends it back with a reason you can read.
-
-Submitting freezes that version: from then on, a push with the same version
-number is refused. You can keep pushing while you wait — change the version
-number in `manifest.yaml` first, and the new version is a draft for you to try
-while the one in the queue stays as it was. (Spotted a typo the moment you
-pressed the button? **Withdraw from review** turns that version back into a
-draft you can push again.)
-
-Rejected isn't a verdict on you; it's a list of changes. Fix them in a new
-version — change the number, push, try it — and submit that one. The rejected
-version itself can't be submitted again.
-
-There's no command for any of this, and nothing for Claude to run: submitting
-is a button because it's you saying "this one's ready", which is a different
-thing from a push.
-
-`docs/REVIEW_AND_SHARING.md` has the rest — including how to change an app
-that's already approved. (Short version: bump the version number. Each version
-keeps its own code, so the approved one keeps working for everyone while the
-new one is private to you.)
-
----
-
-## The one thing that decides whether this works
-
-**Build something that answers with a fact or a figure.**
-
-Pippa only reaches for an app when the question needs something looked up or
-worked out. We measured this against the live system:
-
-| Gets used | Usually doesn't |
+| Deterministic, in code (`tube.py`, `palace.py`) | Claude, optional (`llm.py`) |
 |---|---|
-| calculations, conversions | translating |
-| live lookups — weather, tides, transport, prices | summarising, rewriting |
-| anything about a named place | writing poems, names, copy |
-| anything about a date or time | definitions, acronyms |
-| working out numbers someone gives you | explaining how things work |
+| Every station, line, route and travel time | Picking concepts out of a paragraph of notes |
+| Routing (Dijkstra over station × line, 5 min per change) | Writing a vivid scene for each stop |
+| The order of stops, the journey, announcements | A second opinion on answers the rules mark as close |
+| Marking recall (aliases, fuzzy match, misplaced answers) | |
+| Spaced-review schedule (1 → 3 → 7 → 14 → 30 days) | |
 
-Apps in the right-hand column tend to sit unused, because Pippa answers those
-herself before any app is consulted. It's not a bug in your app — it just never
-gets asked.
+**The LLM never chooses a station.** Stations come only from
+`tube_network.json`, a snapshot of the TfL Unified API: 11 lines, 272
+stations and 313 hops, with times taken from TfL's timetables. Every scene
+Claude writes is checked, and a scene that names any station other than its
+own is thrown away and replaced with a template. Claude gets no tools. Its
+replies are JSON constrained to a schema, and the notes are passed to it as
+data, not as instructions.
 
-The second thing that matters is the **example phrases** in your
-`manifest.yaml`: they're how Pippa recognises your app. Claude writes them, but
-if your app isn't being picked, that's almost always why — ask Claude to add
-more, written the way a person would actually type.
+**Without a key, everything still works.** Lists and presets need no LLM.
+Imagery falls back to deterministic templates, keyed on a hash of the concept
+and the station, so the same input always gives the same scene. Prose falls
+back to one sentence per stop. Each fallback adds a warning that says what
+happened.
 
----
+## Inputs (shared by all outcomes, all optional)
 
-## How to test your app's routing
+| Input | Type | Meaning |
+|---|---|---|
+| `material` | string | What to memorise: a list (lines, commas, `;`, numbers), `term: detail` pairs, prose, or a preset (`bayes`, `planets`, `wives of henry viii`) |
+| `line` | string | Tube line, e.g. `Victoria`. The Elizabeth line, DLR and Overground are refused politely |
+| `from_station` / `to_station` | string | Route ends. Fuzzy matched (`st pauls`, `kings cross`) |
+| `max_stations` | integer | 2–12 (default 10) |
+| `style` | string | Imagery style: `funny`, `spooky`, `for a ten year old` |
+| `position` / `current_station` / `action` | int / string / string | Where you are and what to do next on the journey |
+| `recall` | string | What you remembered: `brixton prior, stockwell likelihood…` or just `prior, likelihood, …` |
+| `struggled_with` | array of string | Stations or concepts you got wrong |
+| `review_count` | integer | Successful reviews so far |
+| `palace` / `retrieval_results` | object | Earlier outputs, passed back if the caller kept them |
 
-"Routing" is Pippa deciding your app is the one to answer. It is the single
-most common thing to go wrong, and it fails *quietly* — no error, no log line,
-just Pippa answering in her own voice as though your app did not exist.
+### Why every call takes the material again
 
-### First: is it routing, or is it your app?
+Pippa apps are **stateless**: they get no conversation, no user id and no
+storage. So every call rebuilds the palace from the material and route
+inputs, deterministically, and the same words give the same palace,
+station for station. `palace.create` returns `resume_inputs`, which are
+exactly what rebuilds it. A caller that kept the `palace` object can pass it
+back instead. Its station names are never trusted: each stop is rebuilt from
+its `station_id`, which is checked against the network.
 
-Ask the question again with **@** in front: start the message with `@`, pick
-your app from the list, and send the same words. That skips routing — Pippa
-sends the question straight to your app, whatever the words.
+## Outputs
 
-- **It fails with @ too?** Then routing is not the problem; your app is.
-  Pippa says why in one sentence. Tell Claude what you asked and what came
-  back.
-- **It works with @?** Then your app is fine and the rest of this section is
-  for you. That answer says nothing about routing, though: it skipped it.
+**`palace.create`**: `title`, `route_summary`, `route_source`,
+`imagery_source` (`curated` / `template` / `claude`), `stations` (`"1.
+Brixton (Victoria): Prior"`), `story`, `palace` (every stop with station,
+line, zone, landmark, concept, scene, minutes, stations passed, interchanges),
+`resume_hint`, `resume_inputs`, `notes`, and `live_status` (live TfL line
+status, when reachable).
 
-### Then run the routing check
+**`palace.journey`**: `position`, `total`, `station`, `line`, `concept`,
+`scene`, `announcement` (*"This is Stockwell. Change here for the Northern
+line. The next station is Vauxhall."*), `at_end`, `action`,
+`route_summary`, plus `next_station`, `previous_station` and `passing`.
 
-You can check most of it without leaving this repo. Ask Claude:
+**`palace.test`**: `mode` (`quiz` / `graded`), `total`, `questions`,
+`results`, `weak_stations`, `grading_method`, `route_summary`, plus `score`,
+`correct`, `order_correct` and `retrieval_results`.
 
-> check my manifest against the routing check
+**`palace.adapt`**: `weak_stations`, `strengthened` (new multi-sensory
+scenes), `unchanged` (stations you recalled, whose scenes are kept),
+`score`, `next_review_at` (datetime), `review_interval` (duration, e.g.
+`P3D` or `PT20M`), `review_count`, `review_plan`, `imagery_source`, `palace`.
 
-`scripts/routing_check.py` lists the things that stop an app being chosen —
-phrases too vague to carry a question, two of your own outcomes fighting over
-the same words, vocabulary another app already owns, a summary whose first
-clause says nothing. Claude reads it and checks your `manifest.yaml` against
-it; the script itself needs the Pippa toolkit, which only the build has. The
-build runs it on every push that passes the check, and its findings appear
-under **Warnings** in the commit comment.
+## Example conversation
 
-**It cannot promise your app will be picked**, and nothing that runs in here
-could. The decision is made by a model reading your manifest next to the
-manifests of every other app that person has installed — which this repository
-cannot see. What it can do is catch the faults that have actually caused apps
-to go unused.
-
-### The two decisions your question has to survive
-
-| | What it asks | What it reads | What a failure looks like |
-|---|---|---|---|
-| **Gate 1** | should *any* app answer this? | your summary's first clause, plus a few of your phrases, alongside every other installed app | Pippa answers herself; your app is never consulted |
-| **Gate 2** | which app, and which outcome? | all installed outcomes | the wrong app answers, confidently |
-
-Starting a message with **@** and picking your app skips both gates. That is
-exactly why it tests your *app* and not your *routing*.
-
-Two things follow from the gates, and they are the whole game:
-
-- **Only the first clause of your summary is read.** Lead with what your app
-  works out. Reassurance about what it does not keep belongs at the end.
-- **Your example phrases are not documentation — they are behaviour.** Write
-  them as someone types: lower case, no question mark, carrying the subject.
-  `how long is the flight` works. `how long` matches everything and nothing.
-
-### Then test it for real
-
-Once your app is live, run a test matrix. Three lists, and you need all three:
-
-1. **Should reach your app** — your own phrases. If these miss, Gate 1.
-2. **Should reach it, worded differently** — write these yourself, deliberately
-   *not* copying your phrases. If your declared phrases pass and these miss,
-   your phrases are too literal and only you will ever trigger the app.
-3. **Should NOT reach your app** — your subject, but conversation: an opinion
-   about it, a request to explain it, a request to *change* something rather
-   than be told about it. A hit here is worse than a miss: your app answers a
-   question nobody asked.
-
-Send each one in the chat — **without** the @, and with **Keep using**
-switched off, or every message goes to your app — and check the reply carries
-the green **via &lt;your app name&gt;** badge saying **picked by Pippa**, with
-the version you mean to test. Keep the list — when you change your phrases,
-run it again. That is the whole test, and it is repeatable.
-
-### And if your app calls an API, test how it fails
-
-Routing decides whether your app is *asked*. This decides whether it gives a
-useful answer when the world does not cooperate — which, for an app that calls
-somebody else's service, is often.
-
-Claude writes these as tests in `test_app.py`, and the build runs them on
-every push, with no account and no network.
-
-**The network is blocked during tests.** `conftest.py` refuses every outbound
-socket, so a test that quietly calls the real API fails immediately instead of
-passing on your machine and failing on a train. Replace the one method that
-does the HTTP:
-
-```python
-app = App()
-app._fetch = lambda url, timeout=6.0: SAMPLE_RESPONSE
+```
+you    @Mind the Gap build a memory palace for bayes theorem
+pippa  Victoria line, Brixton → Victoria, 5 stops. Stop 1, Brixton: on Electric
+       Avenue a busker under the Bowie mural sings your PRIOR on a loop…
+you    @Mind the Gap next stop on my bayes palace, I'm at stop 1
+pippa  This is Stockwell. Change here for the Northern line. The next station
+       is Vauxhall. Deep in Stockwell's wartime shelter a warden…
+you    @Mind the Gap quiz me on my bayes palace
+you    @Mind the Gap here is what i recalled for bayes: brixton prior, stockwell
+       likelihood, vauxhall evidence, pimlico posterior, victoria normalisation
+pippa  3 of 5 stations held (80%). Weak: Pimlico, Victoria (right idea, wrong
+       station).
+you    @Mind the Gap bayes: i struggled with pimlico and victoria
+pippa  Strengthened 2 stops. Review again in 1 day.
 ```
 
-Cover these, because each one is a real thing that happens:
+## The Bayes demo
 
-| Make the stub do this | And check |
+The preset runs along the real Victoria line, Brixton → Victoria, using a
+diagnostic test: 1% of people have the condition, the test catches 90% of
+them, and 5% of healthy people test positive anyway.
+
+| Stop | Concept | Number |
+|---|---|---|
+| Brixton | **Prior** P(H) | 0.01 |
+| Stockwell | **Likelihood** P(E\|H) | 0.90 |
+| Vauxhall | **Evidence** P(E) = 0.9×0.01 + 0.05×0.99 | 0.0585 |
+| Pimlico | **Normalisation**: divide by P(E) so the posteriors sum to 1 | ÷ 0.0585 |
+| Victoria | **Posterior** P(H\|E) = 0.009 / 0.0585 | ≈ 0.154 |
+
+The curated scenes use each station's real landmark: Electric Avenue and the
+Bowie mural, the wartime deep shelter, MI6 at Vauxhall Cross, Tate Britain,
+and Queen Victoria herself.
+
+## Setting up the Claude key (optional)
+
+In Pippa: **Apps → Created by me → Mind the Gap → Keys**, then add
+`ANTHROPIC_API_KEY`. Never put it in any file in this repository. The key is
+sent only to `https://api.anthropic.com/v1/messages`, in an unredirected
+header, and redirects are refused. The model is `claude-opus-5-5`, called at
+low effort with structured JSON output. Imagery runs in parallel batches of 4
+stops, inside an 18-second budget.
+
+## Files
+
+| File | What it is |
 |---|---|
-| return the payload you captured from the real API | the happy path, with the real shape |
-| return **an empty result** — `[]`, `{}`, a missing key | you say "nothing found", not `IndexError` |
-| raise `HTTPError(404)` | you name the thing that was not found |
-| raise `HTTPError(429)` | a retryable error saying "try again shortly" |
-| raise `TimeoutError` | it is caught — **a timeout is not a `URLError`** |
-| hand you input that is not a real place/postcode/topic | a clear sentence, not a guess |
+| `app.py` | `App`: the four outcomes, the network seam, Claude and live-status calls |
+| `palace.py` | Material parsing, presets, templates, scene checks, journey, grading, schedule |
+| `tube.py` | The network: lookups, routing, route fitting, station-mention detection |
+| `llm.py` | The Claude Messages API over `urllib`, failing safe to fixed reasons |
+| `tube_network.json` | TfL snapshot (54 KB) |
+| `test_app.py` | Tests through `LocalRunner`, with no network |
 
-**The empty result is the one that matters.** A timeout is obvious. A `200`
-containing nothing is not: Nominatim answers `200` with `[]` for a place that
-does not exist, and an app that does `results[0]` turns that into a crash —
-or worse, invents an answer. `docs/API_APPS.md` lists the ones that have been
-measured.
+## Limits, honestly
 
-**Check your parsing against reality once**, before you trust it: ask Claude
-to fetch one real response from the API and compare it with the sample in your
-tests.
+- **Routes are from a snapshot** taken on 2026-11-20. Live TfL line status is
+  fetched on `create` (2.5 s timeout, best effort), but routing does not
+  react to closures.
+- **Journey and test calls use template scenes** unless the caller passes the
+  `palace` back. Without state, the Claude scenes from `create` cannot be
+  remembered, and regenerating them every call would make them change.
+- **Hop times**: 3 of 313 come from straight-line distance, because TfL's
+  timetables did not cover them.
+- Station landmarks are short, well-known facts written for this app. They
+  are not TfL data.
 
-Then, live in Pippa, ask the questions that break it — a place that is not a
-place, a topic nobody has written about. You should get a sentence a person
-can act on, and no other app should pick the question up instead.
+## What we'd have liked to build (some of it impossible today)
 
----
-
-## If your app needs an API key
-
-Most good ideas need no key (`docs/IDEAS.md`). When yours does, the key never
-goes in a file in your repository, and you never paste it into the chat with
-Claude. Pippa keeps it for you:
-
-1. **Tell Claude which service it is.** Claude declares the key by name in
-   `manifest.yaml` (under `app_secrets`) and writes the code that reads it.
-2. **Get the key from the provider**, then open
-   **[app.getpippa.ai](https://app.getpippa.ai)** → **Apps** → **Created by
-   me** → your app → **Keys**, press **Add**, paste it and save. The key is
-   listed there once Claude has pushed the version that declares it, and only
-   for you: signed in to the Pippa account your repository belongs to. You
-   can change it there any time, **without pushing**: the next question
-   already uses the new one.
-3. **Until it is set**, your app is published but cannot answer: Pippa says
-   *"This app isn't ready yet: its builder still has to add
-   OPENWEATHER_API_KEY."* Nobody else can install it, and you can't submit it
-   for review, until every key it needs is there.
-4. **Pippa limits how often your app can be called**, so nobody can spend
-   your key without end: by default 20 times a minute and 300 a day for each
-   Pippa agent (the assistant behind one Pippa account: somebody with several
-   agents gets a share for each), and 120 a minute and 3,000 a day for
-   everybody together. Still, pick a key whose free tier you are happy to
-   share.
-
-**Your app's code is the one thing that holds the key while it runs.** Claude
-writes it to send the key only to the provider's own address (nothing a person
-types can choose where it goes), never to let an AI model it calls read it,
-and never to hand it back, print it or pass on a provider's error message that
-repeats it. Pippa hides an exact copy of the key from your app's answers, but
-not a changed one.
-
-**Never commit a key.** A check on every commit and the build both stop a file
-that looks like one. If a key ever was pushed, **rotate it with the provider
-first** (make a new one, delete the old one), then put the new one under
-**Keys**: deleting it from the code does not help, because it stays in the
-history.
-
-`docs/API_APPS.md`, "Using API keys", has the details.
+- **A real ride-along mode.** Scenes timed to your actual train using TfL
+  arrival predictions, so the scene for Vauxhall arrives just as the doors
+  open at Vauxhall.
+- **Sound.** Station announcements in the Tube's own voice, and an audio
+  palace for commuting with no screen.
+- **Memory across sessions.** A palace that remembers what you forgot, and
+  real spaced repetition that nudges you on day 3. Pippa apps are stateless
+  by design, so this would need a Pippa-side store.
+- **Every rail network.** The Elizabeth line, the Overground, the DLR, and
+  then the Paris Métro, the New York subway and Tokyo. Same code, different
+  snapshot.
+- **Your own commute as the palace.** Learn on the route you already ride
+  every day.
+- **Generated station art**, an image per scene, and AR overlays on the
+  platform itself.
+- **Bayesian mastery tracking.** A Beta prior on each station's recall
+  probability, updated after each quiz, scheduling the next review where the
+  posterior drops below 90%. It would be the Bayes demo, applied to itself.
+- **Multiplayer palaces.** A class shares one route, and each person adds
+  scenes.
+- **Personalised landmarks.** "The café where we met" at Angel. That needs
+  memory, and consent.
 
 ---
 
-## Who can push, and how publishing works
-
-- **Only you can push to `main`** in your repository. Pippa Labs'
-  administrators can too, to help when you ask; Pippa refuses to publish a
-  push by anybody else.
-- **Every push to `main` publishes** your app, as a private draft (step 3).
-- **Nobody but Pippa Labs' organisation owners can force-push `main` or
-  delete it** (you cannot either), so what you have pushed stays.
-- **Pull requests and forks never publish.** There is no button that
-  publishes without a push; a failed run can be re-run from the Actions tab,
-  which publishes the same commit again.
-- **Your keys live in Pippa, not in GitHub**: no file in your repository holds
-  them. Only your app's code sees them, while it runs, and it sends them to
-  the provider and nowhere else (`docs/API_APPS.md`, "Using API keys").
-
----
-
-## If something goes wrong
-
-- **Tell Claude.** It can read the build log and fix it. That's the fastest
-  path for nearly everything.
-- `docs/TROUBLESHOOTING.md` — the errors you're most likely to hit.
-- `docs/API_APPS.md` — if your app calls an API, read this one. It's the
-  difference between an app that works and one that 403s in production.
-- `docs/IDEAS.md` — app ideas with APIs that need no key.
-- `docs/REVIEW_AND_SHARING.md` — who can see your app before it's approved,
-  how to let a friend try it, and how to submit it.
-- **Ask an organiser.** Bring your repo name, what you asked Pippa, and what it
-  said.
-
----
-
-## A tip worth taking
-
-**Get something deployed in the first twenty minutes**, before the app is
-finished. Give Claude your author name, ask it to give the app a name, and push
-the example app as-is. Watch it go live, install it, ask it a question.
-
-Then you know the whole pipeline works — so when something breaks later, you
-know it's your app and not the plumbing.
-
-Your app stays private while you do it. A published app is private to you
-until it's reviewed, so an unfinished one going out costs you nothing at all.
-Your code is a different matter: the repository is public from the first push,
-so anyone can read what you commit. See the top of this page.
+Powered by TfL Open Data. Contains OS data © Crown copyright and database
+rights. Built on Pippa, with Claude.
